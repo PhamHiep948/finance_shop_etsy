@@ -2,7 +2,7 @@
   // ================== CẤU HÌNH ETSY ==================
   // Lấy ở https://www.etsy.com/developers/your-apps  (mục "Keystring" và "Shared Secret").
   // Điền đủ 2 ô ApiKey / SharedSecret rồi lưu file là app tự chuyển sang dữ liệu thật
-  // (không cần khởi động lại backend). Để trống thì app dùng đơn hàng mẫu để thử giao diện.
+  // (không cần khởi động lại backend). Để trống thì không lấy được đơn Etsy.
   "Etsy": {
     // Keystring của app Etsy
     "ApiKey": "",
@@ -16,8 +16,6 @@
     "DefaultCategoryId": 1,
     // Tỷ giá EUR -> USD dự phòng. Bình thường app tự lấy tỷ giá ECB theo ngày đặt đơn;
     // chỉ dùng số này khi không lấy được (mất mạng...)
-    "EurToUsd": 1.087,
-    // true = dùng đơn mẫu khi chưa điền key
-    "UseMockData": true
+    "EurToUsd": 1.087
   }
 }

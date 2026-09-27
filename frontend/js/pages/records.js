@@ -570,13 +570,19 @@ function createRecordsPage(kind) {
 
   function etsyStatusHtml(st) {
     if (!st) return '<div class="etsy-status">Đang kiểm tra kết nối…</div>';
-    if (st.mock) return "";
     if (!st.configured) {
       return `
         <div class="etsy-status error">
           ${icon("triangle-alert", 16)}
           <div><b>Chưa cấu hình key Etsy.</b> Điền <code>ApiKey</code>, <code>SharedSecret</code> trong
           <code>backend/etsy.settings.json</code>. Callback URL cần khai báo trên Etsy: <code>${esc(st.redirectUri)}</code></div>
+        </div>`;
+    }
+    if (st.keyError) {
+      return `
+        <div class="etsy-status error">
+          ${icon("triangle-alert", 16)}
+          <div><b>Key Etsy chưa dùng được.</b> ${esc(st.keyError)}</div>
         </div>`;
     }
     if (!st.connected) {
@@ -669,7 +675,7 @@ function createRecordsPage(kind) {
     try {
       s.etsy.status = await etsyStatus();
     } catch (err) {
-      s.etsy.status = { ready: false, configured: false, mock: false, redirectUri: "" };
+      s.etsy.status = { ready: false, configured: false, redirectUri: "" };
       s.etsy.error = err.message;
     }
     if (s.etsy.open) render(root);

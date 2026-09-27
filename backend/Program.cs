@@ -169,8 +169,8 @@ app.MapGet("/api/v1/fx", async (FxService fx) =>
 });
 
 // ---------------------------------------------------------------- Etsy
-app.MapGet("/api/v1/etsy/status", (EtsyService etsy) => Results.Ok(etsy.Status()));
-app.MapGet("/api/v1/etsy/connect", (EtsyService etsy) => Results.Redirect(etsy.AuthorizeUrl()));
+app.MapGet("/api/v1/etsy/status", async (EtsyService etsy) => Results.Ok(await etsy.StatusAsync()));
+app.MapGet("/api/v1/etsy/connect", async (EtsyService etsy) => Results.Redirect(await etsy.AuthorizeUrlAsync()));
 app.MapGet("/api/v1/etsy/callback", async (HttpRequest req, EtsyService etsy) =>
 {
     if (!string.IsNullOrEmpty(req.Query["error"]))
