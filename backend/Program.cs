@@ -21,6 +21,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<LedgerStore>();
 builder.Services.AddScoped<AttachmentStore>();
 builder.Services.AddScoped<AuditStore>();
+builder.Services.AddSingleton<FxService>();
 builder.Services.AddSingleton<EtsyService>();
 var app = builder.Build();
 app.UseCors("FrontendLocal");
@@ -158,6 +159,13 @@ app.MapGet("/api/v1/audit", async (HttpRequest req, AuditStore audit) =>
     var result = await audit.ListAsync(page, size, q["entityType"], q["action"], entityId, q["search"], q["dateFrom"], q["dateTo"]);
     return Results.Ok(new { items = result.Items, page, pageSize = size, totalItems = result.Total,
         totalPages = (int)Math.Ceiling(result.Total / (double)size) });
+});
+
+// ---------------------------------------------------------------- Tỷ giá
+app.MapGet("/api/v1/fx", async (FxService fx) =>
+{
+    var r = await fx.LatestAsync();
+    return Results.Ok(new { eurToUsd = r.EurToUsd, usdToEur = decimal.Round(1 / r.EurToUsd, 6), date = r.Date, auto = r.Auto });
 });
 
 // ---------------------------------------------------------------- Etsy

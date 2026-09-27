@@ -12,15 +12,15 @@ public sealed class EtsyOptions
     public string ApiKey { get; set; } = "";
     /// <summary>Shared secret của ứng dụng Etsy.</summary>
     public string SharedSecret { get; set; } = "";
-    /// <summary>Shop ID dạng số của cửa hàng.</summary>
+    /// <summary>Shop ID dạng số. Để trống thì tự lấy từ tài khoản Etsy sau khi kết nối.</summary>
     public string ShopId { get; set; } = "";
     /// <summary>Phải trùng với Callback URL đã khai báo trong ứng dụng Etsy.</summary>
     public string RedirectUri { get; set; } = "http://localhost:5000/api/v1/etsy/callback";
     /// <summary>Loại thu gán cho đơn nhập từ Etsy (mặc định 1 = "Bán hàng").</summary>
     public long DefaultCategoryId { get; set; } = 1;
-    /// <summary>Tỷ giá quy đổi khi shop bán bằng EUR (sổ sách lưu USD).</summary>
+    /// <summary>Tỷ giá EUR → USD dự phòng, chỉ dùng khi không lấy được tỷ giá tự động (xem FxService).</summary>
     public decimal EurToUsd { get; set; } = 1.087m;
-    /// <summary>true = dùng đơn hàng giả khi CHƯA điền key. Điền đủ ApiKey/SharedSecret/ShopId thì tự dùng dữ liệu thật.</summary>
+    /// <summary>true = dùng đơn hàng giả khi CHƯA điền key. Điền đủ ApiKey/SharedSecret thì tự dùng dữ liệu thật.</summary>
     public bool UseMockData { get; set; } = true;
 }
 
@@ -47,7 +47,7 @@ public sealed class EtsyOrder
 
 public sealed class EtsyException(string message) : Exception(message);
 
-public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClientFactory http, IWebHostEnvironment env)
+public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClientFactory http, IWebHostEnvironment env, FxService fx)
 {
     private const string AuthorizeEndpoint = "https://www.etsy.com/oauth/connect";
     private const string TokenEndpoint = "https://api.etsy.com/v3/public/oauth/token";
@@ -63,7 +63,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
 
     private EtsyOptions O => options.CurrentValue;
     private string TokenFile => Path.Combine(env.ContentRootPath, "etsy.tokens.json");
-    private bool HasKeys => !string.IsNullOrWhiteSpace(O.ApiKey) && !string.IsNullOrWhiteSpace(O.SharedSecret) && !string.IsNullOrWhiteSpace(O.ShopId);
+    private bool HasKeys => !string.IsNullOrWhiteSpace(O.ApiKey) && !string.IsNullOrWhiteSpace(O.SharedSecret);
     // Đã có key thì luôn gọi Etsy thật; dữ liệu giả chỉ dùng khi chưa cấu hình.
     private bool Mock => O.UseMockData && !HasKeys;
 
@@ -72,7 +72,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
         mock = Mock,
         configured = HasKeys,
         connected = File.Exists(TokenFile),
-        shopId = O.ShopId,
+        shopId = string.IsNullOrWhiteSpace(O.ShopId) ? ReadToken()?.ShopId ?? "" : O.ShopId,
         redirectUri = O.RedirectUri,
         ready = Mock || (HasKeys && File.Exists(TokenFile)),
     };
@@ -81,7 +81,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
 
     public string AuthorizeUrl()
     {
-        if (!HasKeys) throw new EtsyException("Chưa điền ApiKey, SharedSecret và ShopId trong backend/etsy.settings.json.");
+        if (!HasKeys) throw new EtsyException("Chưa điền ApiKey và SharedSecret trong backend/etsy.settings.json.");
         var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
         var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
         var state = Base64Url(RandomNumberGenerator.GetBytes(16));
@@ -107,7 +107,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
             pending.Remove(state, out verifier);
         }
         if (verifier is null) throw new EtsyException("Phiên kết nối Etsy không hợp lệ hoặc đã hết hạn. Hãy bấm Kết nối lại.");
-        await RequestTokenAsync(new Dictionary<string, string>
+        var token = await RequestTokenAsync(new Dictionary<string, string>
         {
             ["grant_type"] = "authorization_code",
             ["client_id"] = O.ApiKey,
@@ -115,6 +115,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
             ["code"] = code,
             ["code_verifier"] = verifier,
         });
+        if (string.IsNullOrWhiteSpace(O.ShopId)) await DetectShopIdAsync(token);
     }
 
     public void Disconnect()
@@ -122,9 +123,16 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
         if (File.Exists(TokenFile)) File.Delete(TokenFile);
     }
 
-    private sealed record TokenData(string AccessToken, string RefreshToken, DateTime ExpiresAt);
+    // ShopId: lấy tự động từ tài khoản Etsy khi etsy.settings.json không điền.
+    private sealed record TokenData(string AccessToken, string RefreshToken, DateTime ExpiresAt, string? ShopId = null);
 
-    private async Task<TokenData> RequestTokenAsync(Dictionary<string, string> form)
+    private TokenData? ReadToken()
+    {
+        try { return File.Exists(TokenFile) ? JsonSerializer.Deserialize<TokenData>(File.ReadAllText(TokenFile)) : null; }
+        catch (Exception e) when (e is IOException or JsonException) { return null; }
+    }
+
+    private async Task<TokenData> RequestTokenAsync(Dictionary<string, string> form, string? shopId = null)
     {
         using var client = http.CreateClient();
         using var res = await client.PostAsync(TokenEndpoint, new FormUrlEncodedContent(form));
@@ -135,12 +143,13 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
         var token = new TokenData(
             root.GetProperty("access_token").GetString()!,
             root.GetProperty("refresh_token").GetString()!,
-            DateTime.UtcNow.AddSeconds(root.GetProperty("expires_in").GetInt32() - 60));
+            DateTime.UtcNow.AddSeconds(root.GetProperty("expires_in").GetInt32() - 60),
+            shopId);
         await File.WriteAllTextAsync(TokenFile, JsonSerializer.Serialize(token));
         return token;
     }
 
-    private async Task<string> AccessTokenAsync()
+    private async Task<TokenData> TokenAsync()
     {
         await tokenLock.WaitAsync();
         try
@@ -148,19 +157,50 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
             if (!File.Exists(TokenFile)) throw new EtsyException("Chưa kết nối tài khoản Etsy. Bấm \"Kết nối Etsy\" để đăng nhập.");
             var token = JsonSerializer.Deserialize<TokenData>(await File.ReadAllTextAsync(TokenFile))
                 ?? throw new EtsyException("File token Etsy bị hỏng, hãy kết nối lại.");
-            if (token.ExpiresAt > DateTime.UtcNow) return token.AccessToken;
-            var refreshed = await RequestTokenAsync(new Dictionary<string, string>
+            if (token.ExpiresAt > DateTime.UtcNow) return token;
+            return await RequestTokenAsync(new Dictionary<string, string>
             {
                 ["grant_type"] = "refresh_token",
                 ["client_id"] = O.ApiKey,
                 ["refresh_token"] = token.RefreshToken,
-            });
-            return refreshed.AccessToken;
+            }, token.ShopId);
         }
         finally
         {
             tokenLock.Release();
         }
+    }
+
+    private HttpClient ApiClient(string accessToken)
+    {
+        var client = http.CreateClient();
+        client.DefaultRequestHeaders.Add("x-api-key", $"{O.ApiKey}:{O.SharedSecret}");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return client;
+    }
+
+    /// <summary>Hỏi Etsy shop của tài khoản đang đăng nhập (GET /users/me) rồi lưu vào file token.</summary>
+    private async Task<string> DetectShopIdAsync(TokenData token)
+    {
+        using var client = ApiClient(token.AccessToken);
+        using var res = await client.GetAsync($"{ApiBase}/users/me");
+        var body = await res.Content.ReadAsStringAsync();
+        if (!res.IsSuccessStatusCode) throw new EtsyException($"Không lấy được shop của tài khoản Etsy ({(int)res.StatusCode}): {body}");
+        using var doc = JsonDocument.Parse(body);
+        if (!doc.RootElement.TryGetProperty("shop_id", out var id) || id.ValueKind != JsonValueKind.Number)
+            throw new EtsyException("Tài khoản Etsy này chưa có shop. Hãy đăng nhập đúng tài khoản chủ shop.");
+        var shopId = id.GetInt64().ToString(CultureInfo.InvariantCulture);
+        await tokenLock.WaitAsync();
+        try
+        {
+            var saved = ReadToken() ?? token;
+            await File.WriteAllTextAsync(TokenFile, JsonSerializer.Serialize(saved with { ShopId = shopId }));
+        }
+        finally
+        {
+            tokenLock.Release();
+        }
+        return shopId;
     }
 
     // ---------------------------------------------------------------- Lấy đơn hàng
@@ -169,34 +209,34 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
     {
         if (to < from) (from, to) = (to, from);
         if (to.DayNumber - from.DayNumber > 366) throw new EtsyException("Mỗi lần chỉ lấy tối đa 1 năm đơn hàng.");
-        return Mock ? MockOrders(from, to) : await RealOrdersAsync(from, to);
+        var rates = await fx.DailyAsync(from, to);
+        return Mock ? MockOrders(from, to, rates) : await RealOrdersAsync(from, to, rates);
     }
 
-    private async Task<List<EtsyOrder>> RealOrdersAsync(DateOnly from, DateOnly to)
+    private async Task<List<EtsyOrder>> RealOrdersAsync(DateOnly from, DateOnly to, Func<DateOnly, FxService.FxRate> rates)
     {
-        if (!HasKeys) throw new EtsyException("Chưa điền ApiKey, SharedSecret và ShopId trong backend/etsy.settings.json.");
-        var accessToken = await AccessTokenAsync();
-        using var client = http.CreateClient();
-        client.DefaultRequestHeaders.Add("x-api-key", $"{O.ApiKey}:{O.SharedSecret}");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        if (!HasKeys) throw new EtsyException("Chưa điền ApiKey và SharedSecret trong backend/etsy.settings.json.");
+        var token = await TokenAsync();
+        var shopId = !string.IsNullOrWhiteSpace(O.ShopId) ? O.ShopId : token.ShopId ?? await DetectShopIdAsync(token);
+        using var client = ApiClient(token.AccessToken);
         var min = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue)).ToUnixTimeSeconds();
         var max = new DateTimeOffset(to.ToDateTime(TimeOnly.MaxValue)).ToUnixTimeSeconds();
         var orders = new List<EtsyOrder>();
         for (var offset = 0; ; offset += 100)
         {
-            var url = $"{ApiBase}/shops/{Uri.EscapeDataString(O.ShopId)}/receipts?min_created={min}&max_created={max}&was_paid=true&limit=100&offset={offset}";
+            var url = $"{ApiBase}/shops/{Uri.EscapeDataString(shopId)}/receipts?min_created={min}&max_created={max}&was_paid=true&limit=100&offset={offset}";
             using var res = await client.GetAsync(url);
             var body = await res.Content.ReadAsStringAsync();
             if (!res.IsSuccessStatusCode) throw new EtsyException($"Etsy API lỗi ({(int)res.StatusCode}): {body}");
             using var doc = JsonDocument.Parse(body);
             var results = doc.RootElement.GetProperty("results");
-            foreach (var receipt in results.EnumerateArray()) orders.Add(MapReceipt(receipt));
+            foreach (var receipt in results.EnumerateArray()) orders.Add(MapReceipt(receipt, rates));
             if (results.GetArrayLength() < 100) break;
         }
         return orders;
     }
 
-    private EtsyOrder MapReceipt(JsonElement r)
+    private static EtsyOrder MapReceipt(JsonElement r, Func<DateOnly, FxService.FxRate> rates)
     {
         static decimal Money(JsonElement parent, string name)
         {
@@ -208,20 +248,20 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
         var titles = r.TryGetProperty("transactions", out var tx)
             ? tx.EnumerateArray().Select(t => (Title: t.GetProperty("title").GetString() ?? "", Qty: t.TryGetProperty("quantity", out var q) ? q.GetInt32() : 1)).ToList()
             : [];
-        var created = DateTimeOffset.FromUnixTimeSeconds(r.GetProperty("created_timestamp").GetInt64()).LocalDateTime;
+        var created = DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeSeconds(r.GetProperty("created_timestamp").GetInt64()).LocalDateTime);
         return Build(
             r.GetProperty("receipt_id").GetInt64().ToString(CultureInfo.InvariantCulture),
-            DateOnly.FromDateTime(created), titles, currency,
+            created, titles, currency, rates(created),
             Money(r, "total_price"), Money(r, "discount_amt"), Money(r, "subtotal"),
             Money(r, "total_shipping_cost"), Money(r, "total_tax_cost") + Money(r, "total_vat_cost"),
             r.TryGetProperty("country_iso", out var country) ? country.GetString() ?? "" : "");
     }
 
-    /// <summary>Quy đổi một đơn về USD và tính các trường của khoản thu.</summary>
-    private EtsyOrder Build(string receiptId, DateOnly date, List<(string Title, int Qty)> items, string currency,
+    /// <summary>Quy đổi một đơn về USD (theo tỷ giá ngày đặt đơn) và tính các trường của khoản thu.</summary>
+    private static EtsyOrder Build(string receiptId, DateOnly date, List<(string Title, int Qty)> items, string currency, FxService.FxRate fxRate,
         decimal itemTotal, decimal discount, decimal subtotal, decimal shipping, decimal tax, string country)
     {
-        var rate = currency.Equals("EUR", StringComparison.OrdinalIgnoreCase) ? O.EurToUsd : 1m;
+        var rate = currency.Equals("EUR", StringComparison.OrdinalIgnoreCase) ? fxRate.EurToUsd : 1m;
         decimal Usd(decimal v) => decimal.Round(v * rate, 2, MidpointRounding.AwayFromZero);
         if (subtotal == 0) subtotal = itemTotal - discount;
         var amount = Usd(subtotal) + Usd(shipping);
@@ -229,7 +269,10 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
         if (title.Length > 180) title = title[..180] + "…";
         if (items.Count > 1) title += $" (+{items.Count - 1} sản phẩm)";
         var notes = new List<string>();
-        if (rate != 1m) notes.Add($"Quy đổi từ EUR theo tỷ giá {O.EurToUsd.ToString(CultureInfo.InvariantCulture)}.");
+        if (rate != 1m)
+            notes.Add(fxRate.Auto
+                ? $"Quy đổi từ EUR theo tỷ giá ECB ngày {fxRate.Date}: 1 EUR = {rate.ToString(CultureInfo.InvariantCulture)} USD."
+                : $"Quy đổi từ EUR theo tỷ giá dự phòng 1 EUR = {rate.ToString(CultureInfo.InvariantCulture)} USD (không lấy được tỷ giá tự động).");
         else if (!currency.Equals("USD", StringComparison.OrdinalIgnoreCase)) notes.Add($"Đơn bằng {currency}, chưa quy đổi.");
         return new EtsyOrder
         {
@@ -252,7 +295,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
     }
 
     /// <summary>Đơn giả, cố định theo ngày (gọi lại cùng khoảng ngày sẽ ra đúng các đơn cũ).</summary>
-    private List<EtsyOrder> MockOrders(DateOnly from, DateOnly to)
+    private static List<EtsyOrder> MockOrders(DateOnly from, DateOnly to, Func<DateOnly, FxService.FxRate> rates)
     {
         string[] products =
         [
@@ -283,7 +326,7 @@ public sealed class EtsyService(IOptionsMonitor<EtsyOptions> options, IHttpClien
                 var subtotal = itemTotal - discount;
                 var tax = eu ? decimal.Round((subtotal + shipping) * 0.19m, 2) : 0;
                 orders.Add(Build((5_100_000_000L + d.DayNumber * 10L + i).ToString(CultureInfo.InvariantCulture),
-                    d, items, currency, itemTotal, discount, subtotal, shipping, tax, country));
+                    d, items, currency, rates(d), itemTotal, discount, subtotal, shipping, tax, country));
             }
         }
         return orders;

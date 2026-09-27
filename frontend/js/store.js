@@ -77,6 +77,20 @@ function toast(msg, action) {
   setTimeout(() => el.remove(), action ? 6000 : 3000);
 }
 
+/** Lấy tỷ giá USD/EUR mới nhất từ backend; lỗi thì giữ tỷ giá tạm. */
+async function loadFx() {
+  try {
+    const fx = await api("/fx");
+    if (fx?.usdToEur > 0) {
+      FX_USD_TO_EUR = fx.usdToEur;
+      FX_DATE = fx.auto ? fx.date : "";
+      emitStore();
+    }
+  } catch {
+    // Không có mạng / backend chưa chạy: dùng tỷ giá tạm.
+  }
+}
+
 async function reload() {
   store.loading = true;
   try {

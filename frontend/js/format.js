@@ -1,5 +1,7 @@
 // Dữ liệu tĩnh, định dạng số/tiền/ngày và các hàm tính toán dùng chung.
-const FX_USD_TO_EUR = 0.92;
+// Tỷ giá USD → EUR; giá trị tạm, được thay bằng tỷ giá ECB mới nhất khi tải trang (loadFx trong store.js).
+let FX_USD_TO_EUR = 0.92;
+let FX_DATE = "";
 const INCOME_CATEGORIES = [{ id: 1, name: "Bán hàng" }, { id: 2, name: "Thu khác" }];
 const EXPENSE_CATEGORIES = [
   { id: 3, name: "Nguyên vật liệu" }, { id: 4, name: "Bao bì / đóng gói" },

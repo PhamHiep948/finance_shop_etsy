@@ -341,7 +341,7 @@ function recordDetailHtml(kind, rec, att, nav, animate) {
         <section class="dr-section">
           <h4>Chi tiết tài chính</h4>
           <div class="dr-rows">${finance.join("")}</div>
-          <p class="dr-foot-note muted">Tỷ giá quy đổi: 1 USD = ${Number(FX_USD_TO_EUR).toLocaleString("vi-VN")} EUR</p>
+          <p class="dr-foot-note muted">Tỷ giá quy đổi: 1 USD = ${Number(FX_USD_TO_EUR).toLocaleString("vi-VN", { maximumFractionDigits: 4 })} EUR${FX_DATE ? ` (ECB, ngày ${esc(dmy(FX_DATE))})` : ""}</p>
         </section>
         <section class="dr-section dr-attach"${locked ? "" : ' data-drop="detail"'}>
           <div class="dr-section-head">
@@ -575,7 +575,7 @@ function createRecordsPage(kind) {
       return `
         <div class="etsy-status error">
           ${icon("triangle-alert", 16)}
-          <div><b>Chưa cấu hình key Etsy.</b> Điền <code>ApiKey</code>, <code>SharedSecret</code>, <code>ShopId</code> trong
+          <div><b>Chưa cấu hình key Etsy.</b> Điền <code>ApiKey</code>, <code>SharedSecret</code> trong
           <code>backend/etsy.settings.json</code>. Callback URL cần khai báo trên Etsy: <code>${esc(st.redirectUri)}</code></div>
         </div>`;
     }
@@ -583,14 +583,14 @@ function createRecordsPage(kind) {
       return `
         <div class="etsy-status">
           ${icon("link", 16)}
-          <div><b>Đã có key, chưa đăng nhập Etsy.</b> Bấm nút bên phải để cấp quyền đọc đơn hàng của shop <code>${esc(st.shopId)}</code>.</div>
+          <div><b>Đã có key, chưa đăng nhập Etsy.</b> Bấm nút bên phải để cấp quyền đọc đơn hàng của shop${st.shopId ? ` <code>${esc(st.shopId)}</code>` : ""}.</div>
           <a class="btn primary sm" href="${API_BASE}/api/v1/etsy/connect">${icon("link", 14)} Kết nối Etsy</a>
         </div>`;
     }
     return `
       <div class="etsy-status ok">
         ${icon("check", 16)}
-        <div><b>Đã kết nối shop ${esc(st.shopId)}.</b> Đơn đã nhập sẽ không bị nhập trùng.</div>
+        <div><b>Đã kết nối shop${st.shopId ? " " + esc(st.shopId) : " Etsy"}.</b> Đơn đã nhập sẽ không bị nhập trùng.</div>
         <button class="btn ghost sm" type="button" data-action="etsy-disconnect">Ngắt kết nối</button>
       </div>`;
   }

@@ -204,3 +204,4 @@ onStoreChange(renderPage);
 window.addEventListener("hashchange", route);
 route();
 reload();
+loadFx();
