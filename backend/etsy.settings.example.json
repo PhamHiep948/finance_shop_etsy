@@ -1,0 +1,22 @@
+{
+  // ================== CẤU HÌNH ETSY ==================
+  // Lấy ở https://www.etsy.com/developers/your-apps  (mục "Keystring" và "Shared Secret").
+  // Điền đủ 3 ô ApiKey / SharedSecret / ShopId rồi lưu file là app tự chuyển sang dữ liệu thật
+  // (không cần khởi động lại backend). Để trống thì app dùng đơn hàng mẫu để thử giao diện.
+  "Etsy": {
+    // Keystring của app Etsy
+    "ApiKey": "",
+    // Shared Secret của app Etsy (giữ bí mật như mật khẩu)
+    "SharedSecret": "",
+    // Mã số shop (dạng số, không phải tên shop)
+    "ShopId": "",
+    // Phải khai báo y hệt ở mục "Callback URLs" của app Etsy
+    "RedirectUri": "http://localhost:5000/api/v1/etsy/callback",
+    // Loại thu gán cho đơn nhập từ Etsy (1 = Bán hàng)
+    "DefaultCategoryId": 1,
+    // Tỷ giá quy đổi khi shop bán bằng EUR
+    "EurToUsd": 1.087,
+    // true = dùng đơn mẫu khi chưa điền key
+    "UseMockData": true
+  }
+}
