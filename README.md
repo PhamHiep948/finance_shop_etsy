@@ -8,25 +8,84 @@
 - **Frontend** `frontend/` — HTML / CSS / JavaScript thuần, được API phục vụ tại cùng địa chỉ.
 - **Tài liệu** `docs/` — phạm vi, chức năng, use case, dữ liệu, API, quy tắc nghiệp vụ, hướng dẫn.
 
-## Chạy nhanh
+## Cách chạy
 
-```bash
-# 0. XAMPP: Start MySQL; tạo database "finance" (utf8mb4) nếu chưa có
-cd backend
-dotnet tool restore
-dotnet run --project Migrations/Fin.Migration     # tạo / nâng cấp bảng + dữ liệu mặc định (chạy lại an toàn)
-dotnet run --project Host/Fin.Host.Api            # http://localhost:5000
+### 1. Chuẩn bị
+
+| Công cụ | Ghi chú |
+|---|---|
+| .NET SDK 9.0.x | kiểm tra: `dotnet --list-sdks` |
+| XAMPP (MariaDB / MySQL) | mở XAMPP Control Panel → MySQL **Start** |
+| Chrome / Edge | frontend là HTML / JS thuần, không cần Node.js |
+
+Tạo database (chỉ làm một lần, trống cũng được):
+
+```sql
+CREATE DATABASE finance CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-Chi tiết cấu hình, Etsy và lỗi thường gặp: [docs/huong-dan/chay-du-an.md](docs/huong-dan/chay-du-an.md).
+### 2. Cấu hình
 
-## Kiểm thử
+Sửa chuỗi kết nối cho đúng máy (cổng, mật khẩu) ở **cả hai** file:
+
+- `backend/Host/Fin.Host.Api/appsettings.json`
+- `backend/Migrations/Fin.Migration/appsettings.json`
+
+```json
+"ConnectionStrings": {
+  "Finance": "Server=127.0.0.1;Port=3307;Database=finance;User ID=root;Password="
+}
+```
+
+Không muốn sửa file chung thì chép `appsettings.Development.example.json` thành `appsettings.Development.json` (file này không đưa lên git).
+
+Nếu dùng Etsy: chép `backend/Host/Fin.Host.Api/etsy.settings.example.json` thành `etsy.settings.json`, điền `ApiKey`, `SharedSecret`. Callback URL khai báo trên Etsy: `http://localhost:5000/api/v1/etsy/callback`.
+
+### 3. Tạo / nâng cấp database
+
+```bash
+cd backend
+dotnet tool restore
+dotnet run --project Migrations/Fin.Migration
+```
+
+Tạo đủ bảng + dữ liệu mặc định; chạy lại nhiều lần vẫn an toàn. Kết quả đúng: dòng cuối `Database is up to date`.
+
+### 4. Chạy ứng dụng
+
+```bash
+cd backend
+dotnet run --project Host/Fin.Host.Api
+```
+
+| Địa chỉ | Nội dung |
+|---|---|
+| http://localhost:5000 | Giao diện |
+| http://localhost:5000/swagger | Danh sách API |
+| http://localhost:5000/health | Kiểm tra API (`{"status":"healthy"}`) |
+
+Dừng bằng `Ctrl+C`.
+
+### 5. Kiểm thử
+
+Tắt API trước khi build (API đang chạy sẽ khóa file `.dll`, báo lỗi `MSB3021`).
 
 ```bash
 cd backend
 dotnet build Fin.Finance.sln
 dotnet test Tests/Fin.Tests.Unit
 ```
+
+### Lỗi thường gặp
+
+| Hiện tượng | Cách xử lý |
+|---|---|
+| Không kết nối được MySQL | XAMPP chưa Start MySQL, sai cổng / mật khẩu trong `ConnectionStrings:Finance`, hoặc chưa chạy `Fin.Migration` |
+| Build lỗi `MSB3021` (file đang bị dùng) | API vẫn đang chạy — `Ctrl+C` rồi build lại |
+| Cổng 5000 đang bận | Tắt tiến trình chiếm cổng, hoặc đổi `applicationUrl` trong `Host/Fin.Host.Api/Properties/launchSettings.json` (nhớ đổi cả Callback URL Etsy) |
+| Etsy từ chối key | App Etsy còn "Pending", hoặc sai Keystring / Shared Secret trong `etsy.settings.json` |
+
+Chi tiết hơn: [docs/huong-dan/chay-du-an.md](docs/huong-dan/chay-du-an.md).
 
 ## Tài liệu
 
@@ -40,5 +99,3 @@ Bắt đầu từ [docs/README.md](docs/README.md).
 | Bảng, migration | [docs/DATABASE.md](docs/DATABASE.md) |
 | Quy tắc tính tiền, thuế, khóa sổ… | [docs/requirements/quy-tac-nghiep-vu.md](docs/requirements/quy-tac-nghiep-vu.md) |
 | Thêm chức năng mới | [docs/huong-dan/them-chuc-nang-moi.md](docs/huong-dan/them-chuc-nang-moi.md) |
-
-`backend-legacy/` là backend cũ (Minimal API + SQL viết tay), giữ lại để đối chiếu; có thể xóa khi đã yên tâm với backend mới.

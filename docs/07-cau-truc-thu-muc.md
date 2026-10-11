@@ -34,7 +34,6 @@ finance_shop_etsy/
 │       ├── store.js · format.js · icons.js · app.js
 │       └── pages/                         # dashboard, records (thu / chi), reports, report-export, fx, history, trash
 ├── database/                              # Script SQL thời backend cũ (tham khảo; nay dùng Fin.Migration)
-├── backend-legacy/                        # Backend cũ (Minimal API, SQL viết tay) — giữ để so sánh, có thể xóa
 └── docs/                                  # Tài liệu này
 ```
 
