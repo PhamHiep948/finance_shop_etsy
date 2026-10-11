@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fin.Infrastructure.Finance\Fin.Infrastructure.Finance.csproj" />
+    <ProjectReference Include="..\Fin.Model.Dto.Finance\Fin.Model.Dto.Finance.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Fin.Infrastructure.Shared\Fin.Infrastructure.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fin.Tests.Unit" />
+  </ItemGroup>
+
+</Project>

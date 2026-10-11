@@ -2,6 +2,11 @@
 // Tỷ giá USD → EUR; giá trị tạm, được thay bằng tỷ giá ECB mới nhất khi tải trang (loadFx trong store.js).
 let FX_USD_TO_EUR = 0.92;
 let FX_DATE = "";
+// Tỷ giá tự nhập theo tháng: { "yyyy-MM": số USD của 1 EUR } (trang Tỷ giá). Tháng chưa nhập dùng FX_USD_TO_EUR.
+let FX_MONTHLY = {};
+// Phạm vi khoản chi (sửa được), nhóm loại cho báo cáo: tải từ backend trong reload().
+const SCOPES = [];
+const CATEGORY_GROUPS = [];
 const INCOME_CATEGORIES = [{ id: 1, name: "Bán hàng" }, { id: 2, name: "Thu khác" }];
 const EXPENSE_CATEGORIES = [
   { id: 3, name: "Nguyên vật liệu" }, { id: 4, name: "Bao bì / đóng gói" },
@@ -34,6 +39,8 @@ const INCOME_COLS = [
   { id: "taxPercent", label: "% thuế", def: true },
   { id: "tax", label: "Thuế (tiền)", def: false },
   { id: "afterTax", label: "Sau thuế", def: true },
+  { id: "fx", label: "Tỷ giá", def: true },
+  { id: "cost", label: "Tiền xưởng / Tiền ship", def: true },
   { id: "source", label: "Nguồn", def: true },
 ];
 const EXPENSE_COLS = [
@@ -42,6 +49,7 @@ const EXPENSE_COLS = [
   { id: "category", label: "Loại chi", def: true },
   { id: "date", label: "Ngày", def: true },
   { id: "origin", label: "Phạm vi", def: true },
+  { id: "invoice", label: "ID hóa đơn", def: true },
   { id: "amount", label: "Trước thuế", def: false },
   { id: "taxPercent", label: "% thuế", def: true },
   { id: "afterTax", label: "Sau thuế", def: true },
@@ -90,36 +98,67 @@ function afterTax(amount, pct) {
   return Math.round((Number(amount) || 0) * (1 + (Number(pct) || 0) / 100) * 100) / 100;
 }
 function afterTaxOf(r) {
-  return afterTax(r.amount, r.taxPercent);
+  // Dùng số sau thuế đã lưu (đơn Etsy trong EU: tiền nhận về đã là tiền sau thuế), không có thì tự tính.
+  const saved = Number(r.amountAfterTax);
+  return r.amountAfterTax != null && Number.isFinite(saved) ? saved : afterTax(r.amount, r.taxPercent);
 }
-function toDisplay(n, ccy) {
+/**
+ * Tỷ giá 1 EUR = ? USD dùng cho ngày `iso` (không truyền = tháng hiện tại): tỷ giá tự nhập của tháng đó.
+ * Tháng chưa nhập (vd tháng hiện tại chưa có thông báo) mặc định là 1.
+ */
+function eurToUsdOn(iso) {
+  const manual = Number(FX_MONTHLY[String(iso || localISO(new Date())).slice(0, 7)]);
+  return manual > 0 ? manual : 1;
+}
+/** Tháng của `iso` đã tự nhập tỷ giá chưa. */
+const hasMonthlyRate = (iso) => Number(FX_MONTHLY[String(iso || "").slice(0, 7)]) > 0;
+/** USD → tiền hiển thị. Có `iso` thì quy đổi theo tỷ giá của tháng đó (như Excel: USD ÷ tỷ giá tháng). */
+function toDisplay(n, ccy, iso) {
   const v = Number(n) || 0;
-  return ccy === "EUR" ? round2(v * FX_USD_TO_EUR) : v;
+  return ccy === "EUR" ? round2(v / eurToUsdOn(iso)) : v;
 }
-function fromDisplay(n, ccy) {
+function fromDisplay(n, ccy, iso) {
   if (n === "" || n == null) return null;
   const v = Number(n);
   if (!Number.isFinite(v)) return null;
-  return ccy === "EUR" ? round2(v / FX_USD_TO_EUR) : round2(v);
+  return ccy === "EUR" ? round2(v * eurToUsdOn(iso)) : round2(v);
 }
-function fromDisplayNum(n, ccy, fallback = 0) {
-  const v = fromDisplay(n, ccy);
+function fromDisplayNum(n, ccy, fallback = 0, iso) {
+  const v = fromDisplay(n, ccy, iso);
   return v == null ? fallback : v;
 }
-function money(n, ccy) {
-  const v = toDisplay(n, ccy);
-  if (ccy === "EUR") return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v);
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(v);
+function money(n, ccy, iso) {
+  return fmtCcy(toDisplay(n, ccy, iso), ccy);
+}
+/** Định dạng số đã ở đúng loại tiền `ccy` (không quy đổi). */
+function fmtCcy(v, ccy) {
+  if (ccy === "EUR") return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(v) || 0);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(v) || 0);
 }
 function usd(n) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
 }
 const pctLabel = (n) => `${Number(n) || 0}%`;
 const dmy = (iso) => (iso || "").split("-").reverse().join("/");
-const sourceLabel = (v) => (v === "ETSY" ? "Etsy" : v === "EXCEL_IMPORT" ? "Excel" : "Nhập tay");
+const sourceLabel = (v) => (v === "ETSY" ? "Etsy" : v === "EXCEL_IMPORT" ? "Excel" : v === "LINKED" ? "Từ khoản thu" : "Nhập tay");
 const ETSY_READONLY = "Khoản nhập từ Etsy không được sửa, chỉ có thể xóa.";
+/** Mã đơn dạng link mở trang chi tiết đơn trong Shop Manager của Etsy (tab mới). Không phải đơn Etsy thì chỉ hiện mã. */
+function orderCodeHtml(code, isEtsy) {
+  if (!code) return '<span class="cell-code">—</span>';
+  if (!isEtsy || !/^\d+$/.test(String(code))) return `<span class="cell-code">${esc(code)}</span>`;
+  const url = `https://www.etsy.com/your/orders/sold?order_id=${encodeURIComponent(code)}`;
+  return `<a class="cell-code etsy-order-link" href="${url}" target="_blank" rel="noopener" data-action="open-link"
+    title="Mở đơn này trong Shop Manager của Etsy">${esc(code)}${icon("external-link", 11)}</a>`;
+}
 const saleRegionLabel = (v) => (v === "IN_EU" ? "Trong EU" : v === "OUTSIDE_EU" ? "Ngoài EU" : "—");
-const originScopeLabel = (v) => (v === "INTERNATIONAL" ? "Quốc tế" : v === "DOMESTIC" ? "Nội địa" : "—");
+/** Tên phạm vi khoản chi; `v` là id phạm vi (dạng chuỗi). Dữ liệu cũ có thể còn mã DOMESTIC / INTERNATIONAL. */
+const originScopeLabel = (v) =>
+  SCOPES.find((x) => String(x.id) === String(v))?.name || (v === "INTERNATIONAL" ? "Quốc tế" : v === "DOMESTIC" ? "Nội địa" : "—");
+/** Các khoản chi tiền xưởng / tiền ship gắn với khoản thu `income` và tổng số đã trả (gồm thuế, USD). */
+function costOf(income, expenses) {
+  const items = expenses.filter((x) => x.linkedIncomeId != null && String(x.linkedIncomeId) === String(income.id));
+  return { items, total: round2(items.reduce((t, x) => t + afterTaxOf(x), 0)) };
+}
 function catName(list, id) {
   return list.find((c) => c.id === id)?.name || "—";
 }
@@ -179,15 +218,8 @@ function recStatus(id, kind, rec) {
   const code = rec?.recordStatus;
   if (code === "PENDING") return { k: "pending", t: "Chờ xử lý" };
   if (code === "DRAFT") return { k: "draft", t: "Bản nháp" };
-  if (code === "COMPLETED") return { k: "done", t: kind === "expense" ? "Hoàn tất" : "Hoàn thành" };
-  const n = Number(id) % 7;
-  if (kind === "expense") {
-    if (n === 3) return { k: "pending", t: "Chờ xử lý" };
-    return { k: "done", t: "Hoàn tất" };
-  }
-  if (n === 2) return { k: "pending", t: "Chờ xử lý" };
-  if (n === 5) return { k: "draft", t: "Bản nháp" };
-  return { k: "done", t: "Hoàn thành" };
+  // Chưa lưu trạng thái riêng: khoản đã ghi vào sổ là đã hoàn thành.
+  return { k: "done", t: kind === "expense" ? "Hoàn tất" : "Hoàn thành" };
 }
 function salesChannelLabel(v) {
   const map = {
@@ -244,4 +276,31 @@ function fxCardHtml(incomes, ccy, cls = "card") {
         ${row("€ EUR (Euro)", eurPct, eur, "fx-eur", " margin-left: auto")}
       </div>
     </article>`;
+}
+
+/**
+ * Ô ngày gõ số dạng dd/mm/yyyy + nút lịch. Ô ngày có sẵn của trình duyệt báo "change" ngay khi gõ 1 chữ số
+ * (gõ "2" đã thành 02) nên trang vẽ lại và mất số gõ tiếp; ô này chỉ áp dụng khi gõ xong (Enter / bấm ra ngoài).
+ * Giá trị thật vẫn nằm trong <input type="date"> ẩn mang `nativeAttrs` (data-field, data-filter, name…),
+ * nên các trang giữ nguyên cách đọc giá trị và bắt sự kiện "change" như cũ. Xử lý gõ phím: app.js.
+ */
+function dateFieldHtml(key, iso, nativeAttrs, label, cls = "") {
+  return `
+    <span class="date-field${cls ? ` ${cls}` : ""}">
+      <input type="text" class="date-text" data-date-key="${esc(key)}" value="${esc(dmy(iso || ""))}" placeholder="dd/mm/yyyy"
+        inputmode="numeric" maxlength="10" autocomplete="off" aria-label="${esc(label)}" />
+      <button type="button" class="date-pick-btn" tabindex="-1" aria-label="Chọn ${esc(label.toLowerCase())} trên lịch">${icon("calendar", 15)}</button>
+      <input type="date" class="date-native" ${nativeAttrs} value="${esc(iso || "")}" tabindex="-1" aria-hidden="true" />
+    </span>`;
+}
+
+/** "29/9/2026", "29.09.26", "29092026" → "2026-09-29"; rỗng → ""; sai → null. */
+function parseDmy(text) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const m = t.match(/^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/) || t.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (!m) return null;
+  const d = Number(m[1]), mo = Number(m[2]), y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? localISO(dt) : null;
 }

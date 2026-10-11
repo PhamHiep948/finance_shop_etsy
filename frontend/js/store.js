@@ -18,29 +18,46 @@ const bodyOf = (key, p) => ({
 });
 
 const store = {
-  ccy: "USD", incomes: [], expenses: [], loading: true,
-  // Khóa sổ theo tháng (lấy từ backend /settings).
-  lock: { enabled: false, graceDays: 1, today: localISO(new Date()) },
+  ccy: (() => { try { return localStorage.getItem("fm_ccy") === "EUR" ? "EUR" : "USD"; } catch { return "USD"; } })(),
+  incomes: [], expenses: [], loading: true,
+  // Khóa sổ theo quý hoặc tháng (lấy từ backend /settings).
+  lock: { enabled: false, period: "QUARTER", graceDays: 1, today: localISO(new Date()) },
+  // Trạng thái đồng bộ Etsy tự động (app.js hỏi backend mỗi phút); autoSeen = lần chạy đã báo cho người dùng.
+  etsyAuto: null, etsyAutoSeen: undefined,
 };
 
-/** Ngày cuối cùng còn được sửa các khoản thuộc tháng của `iso` (mùng GraceDays của tháng sau). */
-function lastEditableDay(iso) {
-  const [y, m] = String(iso).split("-").map(Number);
-  return localISO(new Date(y, m, store.lock.graceDays));
+/** Số tháng của một kỳ khóa sổ (quý = 3, tháng = 1). */
+function lockMonths() {
+  return store.lock.period === "MONTH" ? 1 : 3;
 }
-/** Khoản có ngày `iso` thuộc tháng đã khóa sổ? */
+/** [năm, tháng (0-11)] đầu kỳ chứa ngày `iso`. */
+function periodStart(iso) {
+  const [y, m] = String(iso).split("-").map(Number);
+  const n = lockMonths();
+  return [y, Math.floor((m - 1) / n) * n];
+}
+/** Ngày cuối cùng còn được sửa các khoản thuộc kỳ của `iso` (ngày GraceDays của kỳ sau). */
+function lastEditableDay(iso) {
+  const [y, m0] = periodStart(iso);
+  return localISO(new Date(y, m0 + lockMonths(), store.lock.graceDays));
+}
+/** Khoản có ngày `iso` thuộc kỳ đã khóa sổ? */
 function isLocked(iso) {
   return Boolean(store.lock.enabled && iso && store.lock.today > lastEditableDay(iso));
 }
 /** Ngày sớm nhất còn được nhập khoản mới. */
 function firstOpenDate() {
-  const [y, m] = store.lock.today.split("-").map(Number);
-  const prevMonth = localISO(new Date(y, m - 2, 1));
-  return isLocked(prevMonth) ? localISO(new Date(y, m - 1, 1)) : prevMonth;
+  const [y, m0] = periodStart(store.lock.today);
+  const prevPeriod = localISO(new Date(y, m0 - lockMonths(), 1));
+  return isLocked(prevPeriod) ? localISO(new Date(y, m0, 1)) : prevPeriod;
+}
+/** Tên kỳ khóa sổ của ngày `iso`, ví dụ "Quý 3/2026" hoặc "Tháng 7/2026". */
+function periodName(iso) {
+  const [y, m] = String(iso).split("-").map(Number);
+  return store.lock.period === "MONTH" ? `Tháng ${m}/${y}` : `Quý ${Math.floor((m - 1) / 3) + 1}/${y}`;
 }
 function lockMessage(iso) {
-  const [y, m] = String(iso).split("-").map(Number);
-  return `Tháng ${m}/${y} đã khóa sổ (hạn chỉnh sửa: ${dmy(lastEditableDay(iso))}).`;
+  return `${periodName(iso)} đã khóa sổ (hạn chỉnh sửa: ${dmy(lastEditableDay(iso))}).`;
 }
 const storeListeners = [];
 
@@ -52,7 +69,8 @@ function emitStore() {
   storeListeners.forEach((fn) => fn());
 }
 function setCcy(v) {
-  store.ccy = v;
+  store.ccy = v === "EUR" ? "EUR" : "USD";
+  try { localStorage.setItem("fm_ccy", store.ccy); } catch { /* bỏ qua */ }
   emitStore();
 }
 
@@ -79,29 +97,30 @@ function toast(msg, action) {
 
 /** Lấy tỷ giá USD/EUR mới nhất từ backend; lỗi thì giữ tỷ giá tạm. */
 async function loadFx() {
-  try {
-    const fx = await api("/fx");
-    if (fx?.usdToEur > 0) {
-      FX_USD_TO_EUR = fx.usdToEur;
-      FX_DATE = fx.auto ? fx.date : "";
-      emitStore();
-    }
-  } catch {
-    // Không có mạng / backend chưa chạy: dùng tỷ giá tạm.
+  const [fx, monthly] = await Promise.all([api("/fx").catch(() => null), api("/fx/monthly").catch(() => null)]);
+  // Không có mạng / backend chưa chạy: giữ tỷ giá tạm.
+  if (fx?.usdToEur > 0) {
+    FX_USD_TO_EUR = fx.usdToEur;
+    FX_DATE = fx.auto ? fx.date : "";
   }
+  if (Array.isArray(monthly)) FX_MONTHLY = Object.fromEntries(monthly.map((r) => [r.month, Number(r.eurToUsd)]));
+  emitStore();
 }
 
 async function reload() {
   store.loading = true;
   try {
-    const [incomeCats, expenseCats, incomeRows, expenseRows, settings] = await Promise.all([
+    const [incomeCats, expenseCats, scopes, groups, incomeRows, expenseRows, settings] = await Promise.all([
       api("/categories/income"), api("/categories/expense"),
+      api("/categories/scope").catch(() => []), api("/category-groups").catch(() => []),
       fetchAllPages("/incomes"), fetchAllPages("/expenses"),
       api("/settings").catch(() => null),
     ]);
     if (settings?.periodLock) store.lock = settings.periodLock;
     INCOME_CATEGORIES.splice(0, INCOME_CATEGORIES.length, ...incomeCats);
     EXPENSE_CATEGORIES.splice(0, EXPENSE_CATEGORIES.length, ...expenseCats);
+    SCOPES.splice(0, SCOPES.length, ...scopes);
+    CATEGORY_GROUPS.splice(0, CATEGORY_GROUPS.length, ...groups);
     store.incomes = incomeRows.map(mapRow("incomeDate"));
     store.expenses = expenseRows.map(mapRow("expenseDate"));
   } catch (e) {
@@ -160,6 +179,7 @@ async function categoryAction(kind, method, id, name) {
     return false;
   }
 }
+// `kind`: "income", "expense" hoặc "scope" (phạm vi khoản chi).
 const addCategory = (kind, name) => categoryAction(kind, "POST", null, name);
 const renameCategory = (kind, id, name) => categoryAction(kind, "PUT", id, name);
 const removeCategory = (kind, id) => categoryAction(kind, "DELETE", id);
@@ -174,6 +194,25 @@ async function softDelete(kind, id) {
     toast(e.message);
   }
 }
+
+// ---- Nhóm loại thu / loại chi (bộ lọc báo cáo)
+async function groupAction(method, id, body) {
+  try {
+    const res = await api(`/category-groups${id ? `/${id}` : ""}`, { method, body });
+    await reload();
+    return res ?? true;
+  } catch (e) {
+    toast(e.message);
+    return null;
+  }
+}
+const addGroup = (name, categoryIds) => groupAction("POST", null, { name, categoryIds });
+const updateGroup = (id, patch) => groupAction("PUT", id, patch);
+const removeGroup = (id) => groupAction("DELETE", id);
+
+// ---- Tiền xưởng / tiền ship của khoản thu (lưu thành khoản chi gắn với khoản thu)
+// `cost` = { amount (đã trả, gồm thuế, USD), taxPercent, invoiceId, date }; amount 0 = bỏ.
+const setIncomeCost = (incomeId, cost) => api(`/incomes/${incomeId}/cost`, { method: "PUT", body: cost });
 
 // ---- Thùng rác
 const listTrash = () => api("/trash");
@@ -202,43 +241,57 @@ const etsyStatus = () => api("/etsy/status");
 const etsyOrders = (from, to) => api(`/etsy/orders?from=${from}&to=${to}`);
 const etsyImport = (orders) => api("/etsy/import", { method: "POST", body: { orders } });
 const etsyDisconnect = () => api("/etsy/disconnect", { method: "POST" });
+// Đồng bộ tự động (backend tự lấy đơn mới theo chu kỳ).
+const etsyAutoSync = () => api("/etsy/autosync");
+const setEtsyAutoSync = (enabled, intervalMinutes) => api("/etsy/autosync", { method: "PUT", body: { enabled, intervalMinutes } });
+const runEtsyAutoSync = () => api("/etsy/autosync/run", { method: "POST" });
+
+// ---- Tỷ giá EUR → USD tự nhập theo tháng
+const fxMonthly = () => api("/fx/monthly");
+const fxMonths = (from, to) => api(`/fx/months?from=${from}&to=${to}`);
+const setFxMonthly = (month, eurToUsd) => api(`/fx/monthly/${month}`, { method: "PUT", body: { eurToUsd } });
+const deleteFxMonthly = (month) => api(`/fx/monthly/${month}`, { method: "DELETE" });
 
 function incomePayload(fd, ccy) {
+  // Quy đổi theo tỷ giá của tháng chứa ngày thu / ngày chi (giống lúc hiển thị).
+  const d = fd.get("incomeDate");
   return {
     incomeDate: fd.get("incomeDate"),
     description: fd.get("description"),
     categoryId: Number(fd.get("categoryId")),
-    amount: fromDisplayNum(fd.get("amount"), ccy),
+    amount: fromDisplayNum(fd.get("amount"), ccy, 0, d),
     currency: "USD",
     referenceCode: fd.get("referenceCode"),
     orderCode: String(fd.get("orderCode") || "").trim(),
     saleRegion: String(fd.get("saleRegion") || ""),
     productQty: fd.get("productQty") ? Number(fd.get("productQty")) : null,
-    unitPrice: fromDisplay(fd.get("unitPrice"), ccy),
-    itemTotal: fromDisplay(fd.get("itemTotal"), ccy),
-    discountAmount: fromDisplayNum(fd.get("discountAmount"), ccy),
+    unitPrice: fromDisplay(fd.get("unitPrice"), ccy, d),
+    itemTotal: fromDisplay(fd.get("itemTotal"), ccy, d),
+    discountAmount: fromDisplayNum(fd.get("discountAmount"), ccy, 0, d),
     discountCode: String(fd.get("discountCode") || "").trim(),
-    subtotal: fromDisplay(fd.get("subtotal"), ccy),
-    shippingAmount: fromDisplayNum(fd.get("shippingAmount"), ccy),
-    taxAmount: fromDisplayNum(fd.get("taxAmount"), ccy),
+    subtotal: fromDisplay(fd.get("subtotal"), ccy, d),
+    shippingAmount: fromDisplayNum(fd.get("shippingAmount"), ccy, 0, d),
+    taxAmount: fromDisplayNum(fd.get("taxAmount"), ccy, 0, d),
     taxPercent: Number(fd.get("taxPercent") || 0),
-    amountAfterTax: afterTax(fromDisplayNum(fd.get("amount"), ccy), fd.get("taxPercent")),
+    amountAfterTax: afterTax(fromDisplayNum(fd.get("amount"), ccy, 0, d), fd.get("taxPercent")),
     source: "MANUAL",
     note: fd.get("note"),
   };
 }
 
 function expensePayload(fd, ccy) {
+  const d = fd.get("expenseDate");
   return {
     expenseDate: fd.get("expenseDate"),
     description: fd.get("description"),
     categoryId: Number(fd.get("categoryId")),
-    amount: fromDisplayNum(fd.get("amount"), ccy),
+    amount: fromDisplayNum(fd.get("amount"), ccy, 0, d),
     currency: "USD",
     recipient: fd.get("recipient"),
-    originScope: String(fd.get("originScope") || "DOMESTIC"),
+    originScope: String(fd.get("originScope") || ""),
+    invoiceId: String(fd.get("invoiceId") || "").trim(),
     taxPercent: Number(fd.get("taxPercent") || 0),
-    amountAfterTax: afterTax(fromDisplayNum(fd.get("amount"), ccy), fd.get("taxPercent")),
+    amountAfterTax: afterTax(fromDisplayNum(fd.get("amount"), ccy, 0, d), fd.get("taxPercent")),
     source: "MANUAL",
     note: fd.get("note"),
   };
@@ -247,9 +300,11 @@ function expensePayload(fd, ccy) {
 /** Gán các trình xử lý sự kiện cho vùng trang (ghi đè các trình xử lý của trang trước). */
 function bindRoot(root, handlers = {}) {
   root.onclick = handlers.click || null;
+  root.ondblclick = handlers.dblclick || null;
   root.onchange = handlers.change || null;
   root.oninput = handlers.input || null;
   root.onsubmit = handlers.submit || null;
+  root.onkeydown = handlers.keydown || null;
   root.ondragover = handlers.dragover || null;
   root.ondragleave = handlers.dragleave || null;
   root.ondrop = handlers.drop || null;

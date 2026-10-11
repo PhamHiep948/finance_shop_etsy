@@ -1,0 +1,7 @@
+bin/
+obj/
+appsettings.Development.json
+uploads/
+etsy.settings.json
+etsy.tokens.json
+etsy.autosync.json

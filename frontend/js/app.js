@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { to: "/incomes", label: "Khoản thu", icon: "trending-up" },
   { to: "/expenses", label: "Khoản chi", icon: "trending-down" },
   { to: "/reports", label: "Báo cáo", icon: "pie-chart" },
+  { to: "/fx", label: "Tỷ giá", icon: "euro" },
   { to: "/history", label: "Lịch sử", icon: "history" },
   { to: "/trash", label: "Thùng rác", icon: "trash-2" },
 ];
@@ -13,6 +14,7 @@ const PAGE_METAS = {
   "/incomes": { breadcrumb: "Khoản thu", desc: "Quản lý doanh thu từ đơn hàng & bán lẻ" },
   "/expenses": { breadcrumb: "Khoản chi", desc: "Theo dõi chi phí hoạt động & đối soát thuế" },
   "/reports": { breadcrumb: "Báo cáo", desc: "Báo cáo tài chính & phân tích lợi nhuận" },
+  "/fx": { breadcrumb: "Tỷ giá", desc: "Tự nhập tỷ giá EUR → USD theo từng tháng" },
   "/history": { breadcrumb: "Lịch sử", desc: "Nhật ký thêm, sửa, xóa khoản thu chi và loại" },
   "/trash": { breadcrumb: "Thùng rác", desc: "Khôi phục hoặc xóa vĩnh viễn các khoản đã xóa" },
 };
@@ -22,6 +24,7 @@ const ROUTES = {
   "/incomes": IncomesPage,
   "/expenses": ExpensesPage,
   "/reports": ReportsPage,
+  "/fx": FxPage,
   "/history": HistoryPage,
   "/trash": TrashPage,
 };
@@ -77,6 +80,7 @@ function renderShell() {
         </div>
         <div class="topbar-right">
           <div class="workspace-tools">
+            <div class="ccy-toggle" id="ccy-toggle" role="group" aria-label="Tiền hiển thị"></div>
             <button type="button" class="workspace-tool-btn" id="theme-btn"></button>
           </div>
         </div>
@@ -99,6 +103,10 @@ function renderShell() {
 
     <div class="toast-wrap"></div>`;
 
+  document.getElementById("ccy-toggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-ccy]");
+    if (btn && btn.dataset.ccy !== store.ccy) setCcy(btn.dataset.ccy);
+  });
   document.getElementById("theme-btn").addEventListener("click", () => {
     darkMode = !darkMode;
     applyTheme();
@@ -122,6 +130,14 @@ function applyTheme() {
   btn.title = darkMode ? "Giao diện sáng" : "Giao diện tối";
   btn.setAttribute("aria-label", darkMode ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối");
   btn.setAttribute("aria-pressed", String(darkMode));
+}
+
+/** Nút đổi tiền hiển thị USD ⇄ EUR trên thanh trên cùng (dùng chung cho mọi trang). */
+function renderCcyToggle() {
+  const rate = eurToUsdOn(localISO(new Date()));
+  document.getElementById("ccy-toggle").innerHTML = [["USD", "$ USD"], ["EUR", "€ EUR"]].map(([v, label]) => `
+    <button type="button" class="ccy-opt${store.ccy === v ? " on" : ""}" data-ccy="${v}" aria-pressed="${store.ccy === v}"
+      title="Hiển thị số tiền bằng ${v} · tỷ giá tháng này 1 EUR = ${fmtRate(rate)} USD">${label}</button>`).join("");
 }
 
 /**
@@ -197,11 +213,111 @@ function renderPage() {
   if (current.page) current.page.render(document.getElementById("page"), current.query);
 }
 
+// ---- Ô ngày gõ số dd/mm/yyyy (dateFieldHtml trong format.js), dùng chung cho mọi trang
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (!t.classList?.contains("date-text") || e.inputType?.startsWith("delete")) return;
+  t.value = maskDateText(t.value);
+});
+// Bấm vào ô ngày: chọn sẵn cả ngày cũ để gõ là thay luôn.
+document.addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (t.classList?.contains("date-text")) setTimeout(() => { if (document.activeElement === t) t.select(); });
+});
+
+/**
+ * Định dạng khi đang gõ ngày: gõ đủ ngày thì tự nhảy sang tháng, đủ tháng thì nhảy sang năm (dd/mm/yyyy).
+ * Ngày bắt đầu bằng 4–9, tháng bắt đầu bằng 2–9 hoặc gõ "/" sau 1 chữ số → tự thêm số 0 và nhảy luôn.
+ */
+function maskDateText(raw) {
+  const seg = ["", "", ""];
+  const max = [2, 2, 4];
+  let i = 0;
+  for (const ch of String(raw)) {
+    if (/\d/.test(ch)) {
+      if (i < 2 && seg[i].length === max[i]) i++;
+      if (seg[i].length >= max[i]) continue;
+      seg[i] += ch;
+      // Chữ số đầu không thể là hàng chục (ngày 4–9, tháng 2–9) → hiểu là 0x và sang phần sau.
+      if (i < 2 && seg[i].length === 1 && Number(ch) > (i === 0 ? 3 : 1)) { seg[i] = "0" + ch; i++; }
+    } else if (/[/.\-\s]/.test(ch) && i < 2 && seg[i]) {
+      if (seg[i].length === 1) seg[i] = "0" + seg[i];
+      i++;
+    }
+  }
+  let out = seg[0];
+  if (seg[0].length === 2 && (i >= 1 || seg[1])) out += "/" + seg[1];
+  else if (seg[0].length === 2) out += "/";
+  if (seg[1].length === 2) out += "/" + seg[2];
+  return out;
+}
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (!t.classList?.contains("date-text")) return;
+  if (e.key === "Enter") { e.preventDefault(); commitDateText(t); }
+  else if (e.key === "Escape") t.value = dmy(t.parentElement.querySelector(".date-native").value);
+});
+document.addEventListener("focusout", (e) => {
+  if (e.target.classList?.contains("date-text")) commitDateText(e.target, e.relatedTarget);
+});
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest?.(".date-pick-btn");
+  if (!btn) return;
+  const native = btn.parentElement.querySelector(".date-native");
+  try { native.showPicker(); } catch { native.focus(); }
+});
+// Chọn trên lịch → hiện lại ngày dạng dd/mm/yyyy trong ô gõ.
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.classList?.contains("date-native")) t.parentElement.querySelector(".date-text").value = dmy(t.value);
+}, true);
+
+/** Áp dụng ngày vừa gõ: báo "change" trên ô ngày ẩn để trang lọc lại; giữ con trỏ ở ô ngày kế tiếp nếu đang Tab sang. */
+function commitDateText(text, next) {
+  const native = text.parentElement?.querySelector(".date-native");
+  if (!native) return;
+  const iso = parseDmy(text.value);
+  if (iso === null) {
+    toast("Ngày không hợp lệ. Nhập dạng dd/mm/yyyy, ví dụ 29/09/2026.");
+    text.value = dmy(native.value);
+    return;
+  }
+  text.value = dmy(iso);
+  if (iso === native.value) return;
+  native.value = iso;
+  const nextKey = next?.classList?.contains("date-text") ? next.dataset.dateKey : "";
+  native.dispatchEvent(new Event("change", { bubbles: true }));
+  if (nextKey) {
+    const el = document.querySelector(`.date-text[data-date-key="${nextKey}"]`);
+    if (el && el !== document.activeElement) { el.focus(); el.select(); }
+  }
+}
+
+// ---- Đồng bộ Etsy tự động: mỗi phút hỏi backend; có lần chạy mới nhập thêm đơn thì tải lại dữ liệu.
+async function pollEtsyAuto() {
+  let a;
+  try { a = await etsyAutoSync(); } catch { return; }
+  const changed = store.etsyAuto?.enabled !== a.enabled;
+  store.etsyAuto = a;
+  if (store.etsyAutoSeen !== undefined && a.lastRunAt !== store.etsyAutoSeen && a.lastImported > 0) {
+    toast(`Đã tự động nhập ${a.lastImported} đơn Etsy mới`);
+    store.etsyAutoSeen = a.lastRunAt;
+    reload();
+    return;
+  }
+  store.etsyAutoSeen = a.lastRunAt;
+  if (changed) emitStore();
+}
+
 // ---- Khởi động
 renderShell();
 applyTheme();
+renderCcyToggle();
 onStoreChange(renderPage);
+onStoreChange(renderCcyToggle);
 window.addEventListener("hashchange", route);
 route();
 reload();
 loadFx();
+pollEtsyAuto();
+setInterval(pollEtsyAuto, 60 * 1000);

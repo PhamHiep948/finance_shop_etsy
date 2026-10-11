@@ -79,7 +79,6 @@ const DashboardPage = {
       .slice(0, 5);
 
     const TABS = [["overview", "Tổng quan"], ["by-channel", "Theo kênh"], ["top-sku", "Top sản phẩm"]];
-    const RANGES = [["today", "Hôm nay"], ["7days", "7 ngày"], ["month", "Tháng này"]];
     const rangeLabel = range === "today" ? "hôm nay" : range === "7days" ? "7 ngày qua" : "tháng này";
 
     const kpiCard = ({ label, value, sub, accent, negative }) => `
@@ -266,16 +265,6 @@ const DashboardPage = {
             <div class="ds-tabs">
               ${TABS.map(([k, l]) => `<button type="button" class="ds-tab${tab === k ? " active" : ""}" data-action="tab" data-value="${k}">${l}</button>`).join("")}
             </div>
-          </div>
-          <div class="ds-header-right">
-            <div class="ds-range-group">
-              ${RANGES.map(([k, l]) => `<button type="button" class="ds-range-pill${range === k ? " active" : ""}" data-action="range" data-value="${k}">${l}</button>`).join("")}
-            </div>
-            <select class="ds-ccy-select" data-action="ccy">${optionsHtml(CCY_OPTIONS, ccy)}</select>
-            <button class="ds-export-btn" type="button" data-action="go" data-to="/reports">
-              ${icon("download")}
-              <span>Xuất</span>
-            </button>
           </div>
         </div>
         ${tab === "overview" ? overviewHtml : tab === "by-channel" ? byChannelHtml : topSkuHtml}

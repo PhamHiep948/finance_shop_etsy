@@ -14,7 +14,7 @@ const AUDIT_FIELDS = {
   salesChannel: "Kênh bán", productQty: "Số lượng", payee: "Bên nhận", originScope: "Phạm vi",
   paymentMethod: "Phương thức", referenceCode: "Mã tham chiếu", unitPrice: "Đơn giá", itemTotal: "Tiền hàng",
   discountAmount: "Giảm giá", discountCode: "Mã giảm giá", subtotal: "Tạm tính", shippingAmount: "Vận chuyển",
-  taxAmount: "Thuế (tiền)", note: "Ghi chú",
+  taxAmount: "Thuế (tiền)", note: "Ghi chú", invoiceId: "ID hóa đơn",
 };
 const AUDIT_MONEY = ["amount", "amountAfterTax", "unitPrice", "itemTotal", "discountAmount", "subtotal", "shippingAmount", "taxAmount"];
 
@@ -173,10 +173,9 @@ const HistoryPage = {
             <select class="toolbar-ctrl" name="entityType"${s.entityId ? " disabled" : ""}>${optionsHtml(typeOptions, s.entityType)}</select>
             <select class="toolbar-ctrl" name="action">${optionsHtml(actionOptions, s.action)}</select>
             <span class="toolbar-daterange">
-              ${icon("calendar")}
-              <input class="toolbar-ctrl toolbar-date" type="date" name="from" value="${esc(s.from)}" />
+              ${dateFieldHtml("hist-from", s.from, 'name="from"', "Từ ngày", "toolbar-ctrl")}
               <span class="toolbar-date-sep">→</span>
-              <input class="toolbar-ctrl toolbar-date" type="date" name="to" value="${esc(s.to)}" />
+              ${dateFieldHtml("hist-to", s.to, 'name="to"', "Đến ngày", "toolbar-ctrl")}
             </span>
             ${hasFilter ? `<button class="btn ghost sm" type="button" data-action="clear">${icon("rotate-ccw")} Xóa bộ lọc</button>` : ""}
           </form>

@@ -26,17 +26,32 @@ async function apiRequest(path, { method = "GET", body } = {}) {
 
   if (!res.ok) {
     const data = await res.json().catch(() => null);
-    const detail = data?.errors ? Object.values(data.errors).flat().join(" ") : data?.detail;
-    throw new ApiError(res.status, detail || data?.title || `Lỗi ${res.status}`, data?.errorCode);
+    throw new ApiError(res.status, errorMessage(data) || `Lỗi ${res.status}`, data?.errorCode);
   }
   return res;
 }
 
-/** Gọi API trả JSON. */
+/** Câu báo lỗi trong body: Response<T> ({ message, errors: [] }) hoặc ProblemDetails ({ title, errors: {} }). */
+function errorMessage(data) {
+  if (!data) return "";
+  if (Array.isArray(data.errors) && data.errors.length) return data.errors.join(" ");
+  if (data.errors && typeof data.errors === "object") return Object.values(data.errors).flat().join(" ");
+  return data.message || data.detail || data.title || "";
+}
+
+/**
+ * Gọi API trả JSON. Backend bọc kết quả trong Response<T> { succeeded, message, errorCode, errors, data }:
+ * thành công thì trả về `data`, thất bại thì ném ApiError với câu báo lỗi của backend.
+ */
 async function api(path, options) {
   const res = await apiRequest(path, options);
   if (res.status === 204) return null;
-  return res.json().catch(() => null);
+  const body = await res.json().catch(() => null);
+  if (body && typeof body === "object" && "succeeded" in body) {
+    if (!body.succeeded) throw new ApiError(res.status, errorMessage(body) || "Có lỗi xảy ra.", body.errorCode);
+    return body.data ?? null;
+  }
+  return body;
 }
 
 /** Đường dẫn xem / tải một chứng từ. */

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fin.Service.Finance\Fin.Service.Finance.csproj" />
+    <ProjectReference Include="..\Fin.Infrastructure.Finance\Fin.Infrastructure.Finance.csproj" />
+    <ProjectReference Include="..\Fin.Model.Dto.Finance\Fin.Model.Dto.Finance.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Fin.Presentation.Shared\Fin.Presentation.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

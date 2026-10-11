@@ -4612,6 +4612,19 @@ html[data-theme="dark"] .cat-text.cat-tone-7 { color: #F9A8D4; }
   background: var(--surface, #fff); color: var(--text-primary);
 }
 .etsy-count { font-size: 12px; margin-left: auto; align-self: center; }
+.etsy-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.etsy-rates {
+  display: grid; gap: 6px; margin: 0 0 12px; padding: 8px 10px;
+  border: 1px dashed var(--border); border-radius: 8px; font-size: 12px;
+}
+.etsy-rates-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; color: var(--text-secondary); }
+.etsy-rates-title .muted { font-weight: 400; }
+.etsy-rates-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.etsy-rates-list label { display: grid; gap: 2px; color: var(--text-secondary); }
+.etsy-rates-list input {
+  width: 96px; height: 28px; padding: 0 6px; border: 1px solid var(--border-input); border-radius: 6px; font: inherit;
+  background: var(--surface, #fff); color: var(--text-primary);
+}
 .etsy-table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
 .etsy-table { width: 100%; font-size: 12.5px; }
 .etsy-table th { position: sticky; top: 0; z-index: 1; background: #F8FAFC; }
@@ -4836,3 +4849,279 @@ html:has(.drawer-back.open, .modal-back.open) body { overflow: hidden; }
   background: #FFF1E8; color: #C2410C; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; vertical-align: middle;
 }
 html[data-theme="dark"] .badge.src-etsy, html[data-theme="dark"] .cell-src-etsy { background: rgba(249, 115, 22, .14); color: #FDBA74; border-color: transparent; }
+
+/* ---- Trang Tỷ giá */
+.fx-current { display: flex; align-items: center; gap: 16px; margin: 12px 0; padding: 14px 18px; }
+.fx-current-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.fx-range { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+table.data-table.fx-table { min-width: 860px; }
+.fx-table td { vertical-align: middle; }
+.fx-table td .badge { margin-left: 6px; }
+.data-table.fx-table tbody tr.fx-now td { background: var(--color-accent-100); }
+.fx-input { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.fx-input input {
+  width: 110px; height: 30px; padding: 0 8px; border: 1px solid var(--border-input); border-radius: 6px; font: inherit;
+  background: var(--surface, #fff); color: var(--text-primary);
+}
+html[data-theme="dark"] .data-table.fx-table tbody tr.fx-now td { background: rgba(59, 130, 246, .1); }
+
+/* Mã đơn Etsy: bấm để mở đơn trong Shop Manager */
+.etsy-order-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.etsy-order-link svg { opacity: 0.6; }
+.etsy-order-link:hover { color: var(--primary, #2563EB); text-decoration: underline; }
+.etsy-order-link:hover svg { opacity: 1; }
+
+/* ---- Nút đổi tiền hiển thị USD ⇄ EUR (thanh trên cùng) */
+.ccy-toggle { display: inline-flex; height: 38px; padding: 3px; border: 1px solid #E2E8F0; border-radius: 10px; background: #FFFFFF; }
+.ccy-opt { border: 0; background: none; padding: 0 12px; border-radius: 7px; font: inherit; font-size: 12.5px; font-weight: 700; color: #64748B; cursor: pointer; }
+.ccy-opt:hover { color: #111827; }
+.ccy-opt.on { background: var(--primary); color: #FFFFFF; }
+html[data-theme="dark"] .ccy-toggle { background: #151E2F; border-color: #2D3A4F; }
+html[data-theme="dark"] .ccy-opt { color: #94A3B8; }
+html[data-theme="dark"] .ccy-opt:hover { color: #F1F5F9; }
+html[data-theme="dark"] .ccy-opt.on { background: var(--primary); color: #FFFFFF; }
+
+/* ---- Khoản thu / chi: 3 ô tổng theo bộ lọc, cột tỷ giá, tiền xưởng / ship */
+.kpis.kpis-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .kpis.kpis-3 { grid-template-columns: 1fr; } }
+.cell-fx { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell-fx.is-auto { color: var(--text-secondary); }
+.cell-sub { margin-top: 2px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+.cell-src-linked {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 4px; border-radius: 9px;
+  background: var(--primary-soft); color: var(--color-accent-700); font-size: 10.5px; font-weight: 700; vertical-align: middle;
+}
+html[data-theme="dark"] .cell-src-linked { background: rgba(99, 102, 241, .16); color: #C7D2FE; }
+.cost-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12.5px; }
+
+/* ---- Báo cáo: chọn nhiều loại thu / chi, nhóm loại */
+.rpt-pick-wrap { position: relative; }
+.rpt-pick-btn {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 180px; height: 36px; padding: 0 10px;
+  border: 1px solid var(--border-input); border-radius: 8px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer;
+}
+.rpt-pick-btn.on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.rpt-pick-panel {
+  position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(560px, calc(100vw - 32px));
+  padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 32px rgba(15, 23, 42, .14);
+}
+.rpt-pick-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; max-height: 320px; overflow: auto; }
+.rpt-pick-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 12.5px; }
+.rpt-pick-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.rpt-pick-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.rpt-pick-foot input { flex: 1 1 160px; min-width: 0; }
+.rpt-pick-spacer { flex: 1 1 auto; }
+.groups-modal { width: min(900px, calc(100vw - 32px)); max-width: none; }
+.gm-wrap { max-height: 56vh; margin: 12px 0; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.group-matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+.group-matrix th, .group-matrix td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.group-matrix thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+.group-matrix .gm-cat { min-width: 180px; color: var(--text-primary); }
+.group-matrix .gm-cell { text-align: center; }
+.gm-head { min-width: 150px; }
+.gm-head-in { display: flex; align-items: center; gap: 4px; }
+.gm-name { width: 100%; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--border-input); border-radius: 6px; background: var(--surface); color: var(--text-primary); font: inherit; font-weight: 600; }
+.gm-section td { background: var(--background); color: var(--text-secondary); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+/* Trong khung chọn loại: bỏ style ô nhập / nhãn chung của .rpt-field. */
+.rpt-pick-panel .rpt-pick-item input { width: 16px; height: 16px; flex: none; padding: 0; margin: 0; accent-color: var(--primary); }
+.rpt-pick-panel .rpt-pick-item span { font-size: 13px; font-weight: 400; color: var(--text-primary); }
+.rpt-pick-panel .rpt-pick-foot input { width: auto; }
+.rpt-pick-btn span { font-size: 13px; font-weight: inherit; color: inherit; }
+
+/* ---- Sửa nhanh (nhấp đúp): ô nhập chiếm trọn ô giống form Thêm / Sửa */
+.dr-row.is-editable { cursor: text; transition: border-color .12s, box-shadow .12s; }
+.dr-row.is-editable:hover { border-color: var(--color-accent-300); }
+.dr-row.is-editable:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .13); }
+.dr-row .dr-value:has(> .cell-editor) { display: block; padding: 0; }
+.dr-row .cell-editor {
+  display: block; width: 100%; height: 100%; min-height: 40px; margin: 0; padding: 0 12px;
+  border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent;
+  font: inherit; font-size: 13.5px; color: var(--text-primary);
+}
+.dr-row textarea.cell-editor { min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.dr-row.is-multiline:focus-within { align-items: stretch; }
+td .cell-editor {
+  width: 100%; min-width: 140px; height: 38px; padding: 0 10px;
+  border: 1px solid var(--primary); border-radius: 8px; outline: 0; box-shadow: 0 0 0 3px rgba(99, 102, 241, .13);
+  background: var(--surface); font: inherit; font-size: 13.5px; color: var(--text-primary);
+}
+td:has(> .cell-editor) { padding-top: 6px; padding-bottom: 6px; }
+html[data-theme="dark"] td .cell-editor { background: #151E2F; }
+
+/* ---- Báo cáo: thanh lọc mới (chọn nhanh kỳ, khoảng ngày, bộ lọc dạng nút, thẻ bộ lọc đang áp dụng) */
+.rpt-filterbar.rpt-bar { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px 16px; }
+.rpt-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.rpt-bar-filters { align-items: flex-end; padding-top: 12px; border-top: 1px dashed var(--border); }
+.rpt-presets { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px; border-radius: 10px; background: var(--background); }
+.rpt-preset {
+  height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+}
+.rpt-preset:hover { color: var(--text-primary); }
+.rpt-preset.on { background: var(--surface); color: var(--primary); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+select.rpt-preset { padding-right: 8px; }
+.rpt-range {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 10px;
+  border: 1px solid var(--border-input); border-radius: 9px; background: var(--surface); color: var(--text-secondary);
+}
+.rpt-range input { height: 34px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--text-primary); }
+.rpt-range:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .13); }
+.rpt-range-sep { color: var(--text-secondary); }
+.rpt-period { display: flex; flex-direction: column; margin-left: auto; text-align: right; font-size: 12px; line-height: 1.35; }
+.rpt-period b { font-size: 14px; color: var(--text-primary); }
+.rpt-ctl { display: flex; flex-direction: column; gap: 6px; }
+.rpt-ctl > span { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.rpt-seg { display: inline-flex; padding: 3px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--surface); }
+.rpt-seg-btn {
+  height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+}
+.rpt-seg-btn.on { background: var(--primary); color: #FFFFFF; }
+.rpt-inline { display: flex; gap: 6px; }
+.rpt-select {
+  height: 38px; min-width: 200px; padding: 0 10px; border: 1px solid var(--border-input); border-radius: 9px;
+  background: var(--surface); font: inherit; font-size: 13px; color: var(--text-primary);
+}
+.rpt-icon-btn {
+  display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--border-input); border-radius: 9px;
+  background: var(--surface); color: var(--text-secondary); cursor: pointer;
+}
+.rpt-icon-btn:hover { color: var(--primary); border-color: var(--primary); }
+.rpt-bar .rpt-pick-btn { height: 38px; border-radius: 9px; }
+.rpt-bar .rpt-pick-panel { left: 0; right: auto; }
+.rpt-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12.5px; }
+.rpt-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px 0 10px; border-radius: 13px;
+  background: var(--primary-soft); color: var(--color-accent-700); font-weight: 600;
+}
+.rpt-chip button { display: grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.rpt-chip button:hover { background: rgba(99, 102, 241, .18); }
+.rpt-count {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 2px; padding: 0 5px; border-radius: 9px;
+  background: var(--primary); color: #FFFFFF; font-size: 11px; font-weight: 700;
+}
+html[data-theme="dark"] .rpt-preset.on { background: #1E293B; }
+html[data-theme="dark"] .rpt-chip { background: rgba(99, 102, 241, .16); color: #C7D2FE; }
+@media (max-width: 900px) {
+  .rpt-period { margin-left: 0; text-align: left; }
+  .rpt-range { width: 100%; }
+  .rpt-range input { flex: 1; min-width: 0; }
+}
+.rpt-presets select.rpt-preset { width: auto; min-width: 0; flex: none; border: 0; box-shadow: none; }
+.rpt-range > svg { width: 15px; height: 15px; flex: none; }
+
+/* ---- Báo cáo: quản lý nhóm dạng danh sách (trái) – chi tiết (phải) */
+.groups-modal.gm2 { width: min(880px, calc(100vw - 32px)); max-width: none; padding: 0; overflow: hidden; }
+.gm2-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.gm2-head h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.gm2-body { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: min(560px, calc(100vh - 160px)); }
+.gm2-list { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-right: 1px solid var(--border); background: var(--background); min-height: 0; }
+.gm2-add { display: flex; gap: 6px; }
+.gm2-add input, .gm2-search, .gm2-name {
+  width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--border-input); border-radius: 8px;
+  background: var(--surface); font: inherit; font-size: 13px; color: var(--text-primary); outline: 0;
+}
+.gm2-add input:focus, .gm2-search:focus, .gm2-name:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .13); }
+.gm2-groups { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.gm2-group {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px 10px;
+  border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; color: var(--text-primary); text-align: left; cursor: pointer;
+}
+.gm2-group:hover { background: var(--surface); }
+.gm2-group.on { background: var(--surface); color: var(--primary); font-weight: 600; box-shadow: 0 1px 3px rgba(15, 23, 42, .1); }
+.gm2-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm2-count { flex: none; min-width: 22px; padding: 1px 7px; border-radius: 10px; background: var(--border); color: var(--text-secondary); font-size: 11.5px; font-weight: 700; text-align: center; }
+.gm2-group.on .gm2-count { background: var(--primary-soft); color: var(--primary); }
+.gm2-empty { padding: 10px; font-size: 13px; }
+.gm2-detail { display: flex; flex-direction: column; gap: 14px; padding: 16px 20px; overflow: auto; min-height: 0; }
+.gm2-detail-head { display: flex; gap: 10px; align-items: center; }
+.gm2-name { height: 40px; font-size: 15px; font-weight: 600; }
+.danger-text { color: var(--danger) !important; white-space: nowrap; }
+.gm2-empty-detail { margin: auto; text-align: center; font-size: 13.5px; }
+.gm-sec-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.gm-sec-head .link-btn { margin-left: auto; }
+.gm-cats { display: flex; flex-wrap: wrap; gap: 8px; }
+.gm-cat-chip {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border: 1px solid var(--border-input); border-radius: 16px;
+  background: var(--surface); font-size: 13px; color: var(--text-primary); cursor: pointer; user-select: none;
+}
+.gm-cat-chip input { width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
+.gm-cat-chip:hover { border-color: var(--color-accent-300); }
+.gm-cat-chip.on { border-color: var(--primary); background: var(--primary-soft); color: var(--color-accent-700); font-weight: 600; }
+html[data-theme="dark"] .gm-cat-chip.on { background: rgba(99, 102, 241, .16); color: #C7D2FE; }
+@media (max-width: 700px) {
+  .gm2-body { grid-template-columns: 1fr; height: auto; max-height: calc(100vh - 140px); overflow: auto; }
+  .gm2-list { border-right: 0; border-bottom: 1px solid var(--border); }
+  .gm2-groups { max-height: 180px; }
+}
+/* Ô thời gian nằm chung hàng với các bộ lọc */
+.rpt-bar .rpt-bar-filters { padding-top: 0; border-top: 0; }
+
+/* ---- Ô ngày gõ số dd/mm/yyyy + nút lịch (dateFieldHtml) */
+.date-field { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.date-field.toolbar-ctrl { padding: 0 4px 0 10px; }
+.date-text {
+  width: 92px; height: 32px; padding: 0; border: 0; outline: 0; background: transparent;
+  font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-primary);
+}
+.date-text::placeholder { color: var(--text-secondary); opacity: .7; }
+.date-pick-btn {
+  display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.date-pick-btn:hover { background: var(--primary-soft); color: var(--primary); }
+.date-pick-btn svg { width: 15px; height: 15px; }
+.date-native { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.date-field.toolbar-ctrl:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .13); }
+.rpt-range { padding: 0 6px 0 10px; }
+
+/* ---- Khoản thu / chi: hàng bộ lọc (cùng kiểu trang Báo cáo) */
+.record-filters {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+  padding: 14px 16px; border-top: 1px solid var(--border); background: var(--background);
+}
+.record-filters .rpt-select { min-width: 180px; }
+.rpt-select.is-active, .rpt-range.is-active { border-color: var(--primary); }
+html[data-theme="dark"] .record-filters { background: #0F172A; }
+.date-field .date-text { width: 104px; flex: none; }
+
+/* ---- Đồng bộ Etsy tự động */
+.etsy-auto {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--background); font-size: 13px;
+}
+.etsy-auto.on { border-color: #A7F3D0; background: #ECFDF5; }
+.etsy-auto-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.etsy-auto-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.etsy-switch { position: relative; width: 34px; height: 20px; border-radius: 10px; background: var(--color-neutral-400); transition: background .15s; }
+.etsy-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.etsy-auto-toggle input:checked + .etsy-switch { background: var(--success); }
+.etsy-auto-toggle input:checked + .etsy-switch::after { transform: translateX(14px); }
+.etsy-auto-toggle input:disabled + .etsy-switch { opacity: .5; }
+.etsy-auto-toggle input:focus-visible + .etsy-switch { box-shadow: 0 0 0 3px rgba(99, 102, 241, .25); }
+.etsy-auto-every { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+.etsy-auto-every select { height: 30px; padding: 0 8px; border: 1px solid var(--border-input); border-radius: 7px; background: var(--surface); font: inherit; font-size: 13px; color: var(--text-primary); }
+.etsy-auto-info { flex: 1 1 260px; font-size: 12.5px; }
+.etsy-auto-badge {
+  display: inline-flex; align-items: center; height: 17px; margin-left: 6px; padding: 0 6px; border-radius: 9px;
+  background: #ECFDF5; color: #047857; font-size: 10.5px; font-weight: 700;
+}
+html[data-theme="dark"] .etsy-auto.on { background: rgba(16, 185, 129, .1); border-color: rgba(16, 185, 129, .35); }
+
+/* Báo cáo: gọn để cả hàng bộ lọc nằm trên 1 dòng (từ màn hình ~1366px) */
+.rpt-bar .rpt-bar-filters { gap: 12px; flex-wrap: wrap; }
+.rpt-range .date-field .date-text { width: 86px; }
+.rpt-range .date-pick-btn { width: 24px; height: 24px; }
+.rpt-range { gap: 4px; padding: 0 4px 0 10px; }
+.rpt-bar .rpt-seg-btn { padding: 0 10px; }
+.rpt-bar .rpt-select { min-width: 160px; }
+.rpt-bar .rpt-pick-btn { min-width: 150px; }
+.rpt-range .date-field .date-text { width: 98px; }
+.rpt-bar .rpt-select { min-width: 0; width: 170px; }
+.rpt-bar .rpt-pick-btn { min-width: 140px; }

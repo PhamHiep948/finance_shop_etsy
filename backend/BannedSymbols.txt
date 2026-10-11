@@ -1,0 +1,13 @@
+P:System.DateTime.Now; Use TimeProvider (GetLocalNow) so the clock can be replaced in tests
+P:System.DateTime.Today; Use DateOnly.FromDateTime(TimeProvider.GetLocalNow().DateTime)
+P:System.DateTimeOffset.Now; Use TimeProvider.GetLocalNow()
+P:System.Threading.Tasks.Task`1.Result; Use await
+M:System.Threading.Tasks.Task.Wait(); Use await
+M:System.Threading.Tasks.Task.Wait(System.Int32); Use await
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan); Use await
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken); Use await
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken); Use await
+P:System.Threading.Tasks.ValueTask`1.Result; Use await
+M:System.Net.Http.HttpClient.#ctor; Use IHttpClientFactory
+M:System.Net.Http.HttpClient.#ctor(System.Net.Http.HttpMessageHandler); Use IHttpClientFactory
+M:System.Net.Http.HttpClient.#ctor(System.Net.Http.HttpMessageHandler,System.Boolean); Use IHttpClientFactory
